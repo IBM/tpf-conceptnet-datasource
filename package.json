@@ -1,0 +1,71 @@
+{
+  "name": "tpf-datasource-conceptnet",
+  "description": "Linked Data Fragments Server - TPF ConceptNet Datasource",
+  "version": "1.0.0",
+  "lsd:module": true,
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "index.js",
+  "files": [
+    "components",
+    "lib/**/*.js",
+    "index.js"
+  ],
+  "bugs": {
+    "url": "https://github.com/IBM/tpf-datasource-conceptnet/issues"
+  },
+  "scripts": {
+    "test": "nyc mocha",
+    "lint": "eslint bin/* lib test"
+  },
+  "dependencies": {
+    "lru-cache": "^7.14.0",
+    "node-fetch": "^2.6.7",
+    "object-hash": "^3.0.0",
+    "sparqljson-parse": "^1.5.1"
+  },
+  "peerDependencies": {
+    "@ldf/core": "^3.0.0"
+  },
+  "devDependencies": {
+    "@ldf/core": "^3.2.1",
+    "eslint": "^8.31.0",
+    "nyc": "^15.1.0"
+  },
+  "author": "IBM Research",
+  "homepage": "https://github.com/IBM/tpf-datasource-conceptnet#readme",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "contributors": [
+    {
+      "name": "Marcelo Machado",
+      "email": "mmachado@ibm.com"
+    },
+    {
+      "name": "Guilherme Lima",
+      "email": "guilherme.lima@ibm.com"
+    },
+    {
+      "name": "Elton Soares",
+      "email": "eltons@ibm.com"
+    },
+    {
+      "name": "Renato Cerqueira",
+      "email": "rcerq@br.ibm.com"
+    },
+    {
+      "name": "Rosario Uceda-Sosa",
+      "email": "rosariou@us.ibm.com"
+    }
+  ],
+  "keywords": [
+    "ibm",
+    "ldf",
+    "tpf",
+    "conceptnet"
+  ]
+}
