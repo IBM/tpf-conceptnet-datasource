@@ -21,11 +21,10 @@
     "lint": "eslint bin/* lib test"
   },
   "dependencies": {
-    "lru-cache": "^7.14.0",
-    "node-fetch": "^2.6.7",
+    "lru-cache": "^8.0.0",
+    "node-fetch": "^3.3.1",
     "object-hash": "^3.0.0",
-    "package.json": "^2.0.1",
-    "sparqljson-parse": "^1.5.1"
+    "sparqljson-parse": "^2.2.0"
   },
   "peerDependencies": {
     "@ldf/core": "^3.0.0"
