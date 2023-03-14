@@ -1,0 +1,17 @@
+{
+  "@context": "https://linkedsoftwaredependencies.org/bundles/npm/@ldf/server/^3.0.0/components/context.jsonld",
+  "@id": "urn:ldf-server:my",
+  "import": "preset-qpf:config-defaults.json",
+
+  "datasources": [
+    {
+      "@id": "urn:ldf-server:ConceptNetDatasource",
+      "@type": "ConceptNetDatasource",
+      "datasourceTitle": "My Conceptnet",
+      "description": "My datasource with a Conceptnet",
+      "datasourcePath": "myconceptnet",
+      "endpoint": "https://api.conceptnet.io/query",
+      "baseUri": "http://conceptnet.io"
+    }
+  ]
+}
