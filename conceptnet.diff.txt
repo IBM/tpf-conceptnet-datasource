@@ -1,0 +1,857 @@
+diff --git a/.dockerignore b/.dockerignore
+index b7dbc643..17a6d125 100644
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -1,2 +1,3 @@
+ data
+ notebook
++__pycache__/
+diff --git a/Dockerfile b/Dockerfile
+new file mode 100644
+index 00000000..356ddbe4
+--- /dev/null
++++ b/Dockerfile
+@@ -0,0 +1,60 @@
++FROM ubuntu:20.04 as base
++
++LABEL maintainer="mmachado@ibm.com"
++
++LABEL description="This is a custom Docker Image for Conceptnet 5."
++
++ARG DEBIAN_FRONTEND=noninteractive
++
++RUN apt-get -y update
++
++#basics
++RUN apt-get install git curl wget unzip build-essential -y
++
++# python
++RUN apt-get install python3-pip python3-dev -y
++
++#etc
++RUN apt-get install postgresql-client -y
++RUN apt-get install zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev -y
++RUN apt-get install libreadline-dev libbz2-dev libsqlite3-dev liblzma-dev lzma -y
++
++# Conceptnet required libs
++RUN apt-get install libhdf5-dev libmecab-dev mecab-ipadic-utf8 -y
++
++RUN pip install -U pip
++RUN pip install pytest PyLD language_data wheel ipadic
++RUN pip install uWSGI==2.0.17.1
++
++# Install conceptnet
++WORKDIR "/"
++
++COPY . /usr/src
++
++WORKDIR /usr/src
++
++RUN mkdir data
++
++RUN pip install -e . 
++RUN pip install -e '.[vectors]'
++RUN pip install -e web
++
++
++EXPOSE 8084
++
++FROM base as debug
++
++RUN pip install debugpy
++# Keeps Python from generating .pyc files in the container
++ENV PYTHONDONTWRITEBYTECODE 1
++# Turns off buffering for easier container logging
++ENV PYTHONUNBUFFERED 1
++
++
++FROM base as prod
++
++# STANDALONE MODE
++#CMD python3 web/conceptnet_web/api.py
++
++# THREADED MODE
++CMD /bin/bash runner.sh
+\ No newline at end of file
+diff --git a/README.md b/README.md
+index 7c0c7139..8150bb5f 100644
+--- a/README.md
++++ b/README.md
+@@ -77,3 +77,8 @@ assumption that the small test database has already been built.
+ 
+ Run `pytest --fulldb` to run additional tests on the fully built
+ ConceptNet database.
++
++## Docker
++Build docker image `docker build -t conceptnet:latest --build-arg CONCEPTNET_DB_PASSWORD=<POSTGRESQL_PASSWORD> --build-arg CONCEPTNET_DB_HOST=<POSTGRESQL_HOST>  .`
++
++Run `docker run -d -p 8084:8084 --name conceptnet5 conceptnet`
+\ No newline at end of file
+diff --git a/Snakefile b/Snakefile
+index aa5b81d6..2170fea0 100644
+--- a/Snakefile
++++ b/Snakefile
+@@ -465,6 +465,12 @@ rule load_db:
+     shell:
+         "cn5-db load_data {DATA}/psql && touch {output}"
+ 
++rule load_simplified_edges_view: 
++    output:
++        DATA + "/psql/done_view"
++    shell:
++        "cn5-db load_simplified_edges_view && touch {output}"
++
+ 
+ # Collecting statistics
+ # =====================
+diff --git a/build.sh b/build.sh
+index 65bd85cf..3d1a6e31 100755
+--- a/build.sh
++++ b/build.sh
+@@ -30,4 +30,4 @@ check_db () {
+ check_disk_space
+ pip3 install -e '.[vectors]'
+ check_db
+-snakemake --resources 'ram=30' -j 2 $@
++snakemake --resources 'ram=30' -j$(nproc) $@
+diff --git a/conceptnet5/api.py b/conceptnet5/api.py
+index e603b2aa..e5158687 100644
+--- a/conceptnet5/api.py
++++ b/conceptnet5/api.py
+@@ -11,7 +11,7 @@
+ VECTORS = VectorSpaceWrapper()
+ FINDER = AssertionFinder(dbname=DB_NAME)
+ CONTEXT = ["http://api.conceptnet.io/ld/conceptnet5.7/context.ld.json"]
+-VALID_KEYS = ['rel', 'start', 'end', 'node', 'other', 'source', 'uri']
++VALID_KEYS = ['rel', 'start', 'end', 'node', 'other', 'source', 'uri', 'dataset']
+ 
+ 
+ def success(response):
+@@ -234,14 +234,16 @@ def query_related(uri, filter=None, limit=20):
+     return response
+ 
+ 
+-def query_paginated(query, offset=0, limit=50):
++def query_paginated(query, offset=0, limit=100):
+     """
+     Search ConceptNet for edges matching a query.
+ 
+     The query should be provided as a dictionary of criteria. The `query`
+     function in the `.api` module constructs such a dictionary.
+     """
++
+     found = FINDER.query(query, limit=limit + 1, offset=offset)
++    
+     edges = found[:limit]
+     response = {'@id': make_query_url('/query', query.items()), 'edges': edges}
+     more = len(found) > len(edges)
+@@ -252,6 +254,59 @@ def query_paginated(query, offset=0, limit=50):
+     return success(response)
+ 
+ 
++def simplified_query_paginated(query, offset=0, limit=1000):
++    """
++    Search ConceptNet for edges matching a query.
++
++    The query should be provided as a dictionary of criteria. The `query`
++    function in the `.api` module constructs such a dictionary.
++    """
++
++    found = FINDER.simplified_query(query, limit=limit +1, offset=offset)
++    
++    edges = found[:limit]
++    response = {'@id': make_query_url('/simplified-query', query.items()), 'edges': edges}
++    more = len(found) > len(edges)
++    if len(found) > len(edges) or offset != 0:
++        response['view'] = make_paginated_view(
++            '/simplified-query', sorted(query.items()), offset, limit, more=more
++        )
++
++    return success(response)
++
++
++def query_count(query):
++    """
++    Search counting the total number of edges matching the query
++
++    The query should be provided as a dictionary of criteria. The `query`
++    function in the `.api` module constructs such a dictionary.
++    """
++    
++    edges_count = FINDER.query_count(query) # Count the total number of edges matching the query (It supports Linked Data Fragments)
++ 
++    
++    response = {'numberOfEdges': edges_count}
++
++    return success(response)
++
++def simplified_query_count(query):
++    """
++    Search counting the total number of edges matching the query
++
++    The query should be provided as a dictionary of criteria. The `query`
++    function in the `.api` module constructs such a dictionary.
++    """
++    
++    edges_count = FINDER.simplified_query_count(query) # Count the total number of edges matching the query (It supports Linked Data Fragments)
++ 
++    
++    response = {'numberOfEdges': edges_count}
++
++    return success(response)
++
++
++
+ def standardize_uri(language, text):
+     """
+     Look up the URI for a given piece of text.
+diff --git a/conceptnet5/db/cli.py b/conceptnet5/db/cli.py
+index f875dffe..ecfa08de 100644
+--- a/conceptnet5/db/cli.py
++++ b/conceptnet5/db/cli.py
+@@ -2,7 +2,7 @@
+ 
+ from .connection import check_db_connection, get_db_connection
+ from .prepare_data import assertions_to_sql_csv, load_sql_csv
+-from .schema import create_indices, create_tables
++from .schema import create_indices, create_tables, create_simplified_edges_view
+ 
+ 
+ @click.group()
+@@ -31,6 +31,12 @@ def load_data(input_dir):
+     create_indices(conn)
+     conn.close()
+ 
++@cli.command(name='load_simplified_edges_view')
++def load_simplified_edges_view():
++    conn = get_db_connection()
++    create_simplified_edges_view(conn)
++    conn.close()
++
+ 
+ @cli.command(name='check')
+ def run_check_db_connection():
+diff --git a/conceptnet5/db/connection.py b/conceptnet5/db/connection.py
+index 2b131a63..42db6770 100644
+--- a/conceptnet5/db/connection.py
++++ b/conceptnet5/db/connection.py
+@@ -21,6 +21,7 @@ def get_db_connection(dbname=None):
+ 
+ 
+ def _get_db_connection_inner(dbname):
++    print(f"Config user {config.DB_USERNAME} and host {config.DB_HOSTNAME}")
+     if config.DB_PASSWORD:
+         conn = psycopg2.connect(
+             dbname=dbname,
+diff --git a/conceptnet5/db/query.py b/conceptnet5/db/query.py
+index 86fe021b..0d2abcac 100644
+--- a/conceptnet5/db/query.py
++++ b/conceptnet5/db/query.py
+@@ -49,7 +49,6 @@
+ OFFSET %(offset)s LIMIT %(limit)s;
+ """
+ 
+-
+ def jsonify(value):
+     """
+     Convert a value into a JSON string that can be used for JSONB queries in
+@@ -114,6 +113,41 @@ def gin_jsonb_value(criteria, node_forward=True):
+     return query
+ 
+ 
++def create_simplified_where(query):
++    filters = {}
++    where = '\nWHERE '
++
++    if ('node' in query) ^ ('other' in query):
++        field = 'node'
++        if 'other' in query:
++            field = 'other'
++        filters["field"] = query[field]
++        where+= 'se.start_uri = %(field)s OR se.end_uri = %(field)s'
++    elif 'node' in query and 'other' in query:
++        filters["node"] = query["node"]
++        filters["other"] = query["other"]
++        where+= '(se.start_uri = %(node)s AND se.end_uri = %(other)s) OR (se.start_uri = %(other)s AND se.end_uri = %(node)s)'
++        
++    else:
++        if 'start' in query:
++            filters["start"] = query["start"]
++            where+= 'se.start_uri = %(start)s AND '
++        if 'rel' in query:
++            filters["rel"] = query["rel"]
++            where+= 'se.rel_uri = %(rel)s AND '
++        if 'end' in query:
++            filters["end"] = query["end"]
++            where+= 'se.end_uri = %(end)s AND '
++        if 'dataset' in query:
++            filters["dataset"] = query["dataset"]
++            where+= 'se.dataset = %(dataset)s'
++
++    if where.endswith(' AND '):
++        # slice out AND from where
++        where = where[:-5]
++
++    return where, filters
++
+ class AssertionFinder(object):
+     """
+     The object that interacts with the database to find ConceptNet assertions
+@@ -125,7 +159,7 @@ def __init__(self, dbname=None):
+         self.dbname = dbname
+ 
+     @property
+-    def connection():
++    def connection(self):
+         # See https://www.psycopg.org/docs/connection.html#connection.closed
+         if self._connection is None or self._connection.closed > 0:
+             self._connection = get_db_connection(self.dbname)
+@@ -229,7 +263,7 @@ def query(self, criteria, limit=20, offset=0):
+         The most general way to query based on a set of criteria.
+         """
+         cursor = self.connection.cursor()
+-        if 'node' in criteria:
++        if ('node' in criteria) or ('other' in criteria):
+             query_forward = gin_jsonb_value(criteria, node_forward=True)
+             query_backward = gin_jsonb_value(criteria, node_forward=False)
+             cursor.execute(
+@@ -252,3 +286,115 @@ def query(self, criteria, limit=20, offset=0):
+             transform_for_linked_data(data) for uri, data, weight in cursor.fetchall()
+         ]
+         return results
++
++    def simplified_query(self, criteria, limit=20, offset=0):
++        """
++        The most general way to query based on a set of criteria.
++        """
++        GIN_SIMPLIFIED_QUERY_1WAY = """
++SELECT se.edge_uri, se.start_uri, se.rel_uri, se.end_uri, se.dataset, se.weight
++FROM simplified_edges se"""
++        
++        where = ''
++        filters = {}
++        if len(criteria) > 0:
++            where, filters = create_simplified_where(criteria)
++           
++        GIN_SIMPLIFIED_QUERY_1WAY +=where
++        GIN_SIMPLIFIED_QUERY_1WAY +="\nOFFSET %(offset)s LIMIT %(limit)s;"
++
++        cursor = self.connection.cursor()
++        cursor.execute(
++            GIN_SIMPLIFIED_QUERY_1WAY,
++            {**{'limit': limit, 'offset': offset}, **filters},
++        )
++
++        rows = cursor.fetchall()
++
++        results = []
++        for row in rows:
++            results.append({'edge_uri': row[0], 'start':row[1], 'rel': row[2], 'end': row[3], 'dataset': row[4], 'weight': row[5]})
++
++        return results
++
++    def query_count(self, criteria):
++        """
++        Count the number of edges matching a set of criteria.
++        This supports Linked Data Fragments interfaces such as the 
++        Triple Pattern Fragment
++        """
++
++        if len(criteria) == 0: 
++            # return the total number of edges in the database
++            # this is hardcoded to avoid i/o operation in database. Further versions should update it.
++            return 37062820
++        
++        cursor = self.connection.cursor()
++        
++        if 'node' in criteria or 'other' in criteria:
++            GIN_QUERY_2WAY_COUNT = """
++WITH matched_edges AS (
++    SELECT edge_id FROM edges_gin
++    WHERE data @> %(query_forward)s OR data @> %(query_backward)s
++)
++SELECT COUNT(*)
++FROM matched_edges m, edges e
++WHERE m.edge_id = e.id
++"""
++            query_forward = gin_jsonb_value(criteria, node_forward=True)
++            query_backward = gin_jsonb_value(criteria, node_forward=False)
++            cursor.execute(
++                GIN_QUERY_2WAY_COUNT,
++                {
++                    'query_forward': jsonify(query_forward),
++                    'query_backward': jsonify(query_backward)
++                },
++            )
++        else:
++            GIN_QUERY_1WAY_COUNT = """
++SELECT COUNT(*) FROM edges_gin eg
++INNER JOIN edges e ON eg.edge_id = e.id
++WHERE eg.data @> %(query)s
++"""
++            query = gin_jsonb_value(criteria)
++            cursor.execute(
++                GIN_QUERY_1WAY_COUNT,
++                {
++                    'query': jsonify(query)
++                },
++            )
++
++        numberOfEdges = cursor.fetchone()
++
++        return numberOfEdges[0]
++
++    def simplified_query_count(self, criteria):
++        """
++        Count the number of edges matching a set of criteria.
++        This supports Linked Data Fragments interfaces such as the 
++        Triple Pattern Fragment
++        """
++        if len(criteria) == 0: 
++            # return the total number of edges in the database
++            # this is hardcoded to avoid i/o operation in database. Further versions should update it.
++            return 37062820
++
++        GIN_SIMPLIFIED_QUERY_1WAY_COUNT = """
++SELECT COUNT(*)
++FROM simplified_edges se"""
++        
++        where = ''
++        filters = {}
++        if len(criteria) > 0:
++            where, filters = create_simplified_where(criteria)
++
++        GIN_SIMPLIFIED_QUERY_1WAY_COUNT+=where
++       
++        cursor = self.connection.cursor()
++
++        cursor.execute(GIN_SIMPLIFIED_QUERY_1WAY_COUNT, filters)
++
++        numberOfEdges = cursor.fetchone()
++
++        return numberOfEdges[0]
++    
+\ No newline at end of file
+diff --git a/conceptnet5/db/schema.py b/conceptnet5/db/schema.py
+index b7d53d4f..48642593 100644
+--- a/conceptnet5/db/schema.py
++++ b/conceptnet5/db/schema.py
+@@ -83,6 +83,29 @@
+     "CREATE INDEX edges_gin_index ON edges_gin USING gin (data jsonb_path_ops)",
+ ]
+ 
++SIMPLIFIED_EDGES_VIEW = [
++    """
++    CREATE MATERIALIZED VIEW simplified_edges AS (
++        SELECT 
++            me.edge_id as edge_id, 
++            ed.uri as edge_uri, 
++            s.uri as start_uri, 
++            e.uri as end_uri, 
++            r.uri as rel_uri, 
++            ed.data->>'dataset' as dataset,
++            ed.weight 
++        FROM edges_gin me
++		INNER JOIN edges ed ON me.edge_id = ed.id
++        INNER JOIN nodes s on ed.start_id = s.id
++        INNER JOIN nodes e on ed.end_id = e.id
++        INNER JOIN relations r on ed.relation_id = r.id
++	) WITH DATA
++    """,
++    "CREATE INDEX edges_start_uri ON simplified_edges (start_uri)",
++    "CREATE INDEX edges_end_uri ON simplified_edges (end_uri)",
++    "CREATE INDEX edges_rel_uri ON simplified_edges (rel_uri)",
++]
++
+ 
+ def run_commands(connection, commands):
+     with connection:
+@@ -90,10 +113,11 @@ def run_commands(connection, commands):
+             for cmd in commands:
+                 cursor.execute(cmd)
+ 
+-
+ def create_tables(connection):
+     run_commands(connection, TABLES)
+ 
++def create_simplified_edges_view(connection):
++    run_commands(connection, SIMPLIFIED_EDGES_VIEW)
+ 
+ def create_indices(connection):
+     run_commands(connection, INDICES)
+diff --git a/docker-compose.yaml b/docker-compose.yaml
+new file mode 100644
+index 00000000..3bb864e5
+--- /dev/null
++++ b/docker-compose.yaml
+@@ -0,0 +1,79 @@
++version: '3.7'
++
++services:
++  postgres:
++    image: postgres:14
++    restart: always
++    environment:
++      POSTGRES_PASSWORD:
++      POSTGRES_DB: conceptnet5
++      POSTGRES_USER: postgres
++      PGDATA: /var/lib/postgresql/data/pgdata
++    ports:
++      - 5432:5432
++    volumes:
++      - .:/var/lib/postgresql/data
++
++  adminer:
++    image: adminer
++    restart: always
++    ports:
++      - 8080:8080
++
++  conceptnet: #
++    container_name: conceptnet-mini
++    restart: always
++    image: marceloocmachado/conceptnet-mini:latest
++    build:
++      context: .
++      target: prod
++    ports:
++      - 8084:8084
++      - 5678:5678
++    volumes:
++      - .:/usr/src
++    environment:
++      - CONCEPTNET_DB_USER=postgres
++      - CONCEPTNET_DB_PASSWORD=
++      - CONCEPTNET_DB_HOSTNAME=postgres
++      - CONCEPTNET_DB_NAME=conceptnet5
++      - APPLICATION_ROOT=/api
++  
++  conceptnet-web: #
++    container_name: conceptnet-mini
++    restart: always
++    image: marceloocmachado/conceptnet-mini:latest
++    build:
++      context: .
++      target: prod
++    ports:
++      - 8084:8084
++      - 5678:5678
++    volumes:
++      - .:/usr/src
++    environment:
++      - CONCEPTNET_DB_USER=postgres
++      - CONCEPTNET_DB_PASSWORD=
++      - CONCEPTNET_DB_HOSTNAME=postgres
++      - CONCEPTNET_DB_NAME=conceptnet5
++    entrypoint: ["python3", "web/conceptnet_web/web.py"]
++
++  conceptnet-job: #
++    container_name: conceptnet-job
++    restart: always
++    image: marceloocmachado/conceptnet-mini:latest
++    build:
++      context: .
++      target: prod
++    ports:
++      - 8084:8084
++      - 5678:5678
++    volumes:
++      - .:/usr/src/conceptnet
++    environment:
++      - CONCEPTNET_DB_USER=postgres
++      - CONCEPTNET_DB_PASSWORD=
++      - CONCEPTNET_DB_HOSTNAME=postgres
++      - CONCEPTNET_DB_NAME=conceptnet5
++      - APPLICATION_ROOT=/api
++    entrypoint: ["/bin/sh", "-c", "../build.sh"]
+\ No newline at end of file
+diff --git a/runner.sh b/runner.sh
+new file mode 100644
+index 00000000..ea957948
+--- /dev/null
++++ b/runner.sh
+@@ -0,0 +1,21 @@
++#!/bin/bash
++
++if [ -z ${UWSGI_INI+x} ];
++then
++  export UWSGI_INI=uwsgi.ini
++fi
++
++export PYTHONPATH="$PYTHONPATH:${PWD}"
++
++while true; do
++  case "$1" in
++    standalone)
++        python3 ./web/conceptnet_web/api.py
++        ;;
++    *)
++        uwsgi
++        ;;
++  esac
++
++  echo "WILL RESTART PROCESS!!!"
++done
+diff --git a/setup.py b/setup.py
+index b1ea0a45..fc972580 100644
+--- a/setup.py
++++ b/setup.py
+@@ -28,10 +28,10 @@
+     include_package_data=True,
+     exclude_package_data={'conceptnet5': ['support_data/testdata']},
+     install_requires=[
+-        'snakemake < 5.6', 'click', 'requests', 'ftfy', 'msgpack-python', 'numpy',
+-        'langcodes >= 2.1', 'wordfreq >= 2.0.1',
+-        'xmltodict >= 0.11.0, < 0.12.0', 'ordered_set', 'psycopg2-binary',
+-        'marisa-trie', 'tables >= 3.5.1'
++        'snakemake == 5.5.4', 'click == 8.0.3', 'requests == 2.26.0', 'ftfy == 6.0.3', 'msgpack-python == 0.5.6', 'numpy == 1.21.4',
++        'langcodes == 3.3.0', 'wordfreq == 2.5.1',
++        'xmltodict == 0.11.0', 'ordered_set == 4.0.2', 'psycopg2-binary == 2.9.2',
++        'marisa-trie == 0.7.7', 'tables == 3.6.1'
+     ],
+     python_requires='>=3.5',
+     tests_require=['pytest', 'PyLD'],
+@@ -46,7 +46,7 @@
+         ]
+     },
+     extras_require={
+-        'vectors': ['numpy', 'scipy', 'statsmodels', 'tables', 'pandas', 'scikit-learn',
+-                    'mecab-python3', 'jieba', 'marisa_trie', 'matplotlib >= 2', 'annoy']
++        'vectors': ['numpy == 1.21.4', 'scipy == 1.9.1', 'statsmodels == 0.13.1', 'tables == 3.6.1', 'pandas == 1.3.5', 'scikit-learn == 1.0.1',
++                    'mecab-python3 == 1.0.4', 'jieba == 0.42.1', 'marisa_trie == 0.7.7', 'matplotlib == 3.5.1', 'annoy == 1.17.1']
+     },
+ )
+diff --git a/uwsgi.ini b/uwsgi.ini
+new file mode 100644
+index 00000000..ca9a5176
+--- /dev/null
++++ b/uwsgi.ini
+@@ -0,0 +1,9 @@
++[uwsgi]
++socket = 0.0.0.0:6000
++http = 0.0.0.0:$(PORT)
++chmod-socket = 777
++module = wsgi:application
++processes = 8
++enable-threads = true
++master = 1
++buffer-size = 65535
+diff --git a/web/conceptnet_web/api.py b/web/conceptnet_web/api.py
+index 33921056..aa60d9a4 100644
+--- a/web/conceptnet_web/api.py
++++ b/web/conceptnet_web/api.py
+@@ -6,6 +6,7 @@
+ import flask
+ from flask_cors import CORS
+ from flask_limiter import Limiter
++from flask_limiter.util import get_remote_address
+ 
+ from conceptnet5 import api as responses
+ from conceptnet5.api import VALID_KEYS, error
+@@ -17,7 +18,7 @@
+ # Configuration
+ 
+ app = flask.Flask('conceptnet_web')
+-
++bp = flask.Blueprint('ignore', 'conceptnet_web' , template_folder='ignore')
+ 
+ def app_path(path):
+     """
+@@ -37,7 +38,8 @@ def app_path(path):
+ for filter_name, filter_func in FILTERS.items():
+     app.jinja_env.filters[filter_name] = filter_func
+ app.jinja_env.add_extension('jinja2_highlight.HighlightExtension')
+-limiter = Limiter(app, global_limits=["600 per minute", "6000 per hour"])
++limiter = Limiter(app, key_func=get_remote_address,
++                  default_limits=["600 per minute", "6000 per hour"])
+ CORS(app)
+ try_configuring_sentry(app)
+ application = app  # for uWSGI
+@@ -53,12 +55,12 @@ def get_int(args, key, default, minimum, maximum):
+ 
+ 
+ # Lookup: match any path starting with /a/, /c/, /d/, /r/, or /s/
+-@app.route('/<any(a, c, d, r, s):top>/<path:query>')
++@bp.route('/<any(a, c, d, r, s):top>/<path:query>')
+ def query_node(top, query):
+     req_args = flask.request.args
+     path = '/%s/%s' % (top, query.strip('/'))
+     offset = get_int(req_args, 'offset', 0, 0, 100000)
+-    limit = get_int(req_args, 'limit', 20, 0, 1000)
++    limit = get_int(req_args, 'limit', 100, 0, 1000)
+     grouped = req_args.get('grouped', 'false').lower() == 'true'
+     if grouped:
+         limit = min(limit, 100)
+@@ -70,23 +72,67 @@ def query_node(top, query):
+     return jsonify(results)
+ 
+ 
+-@app.route('/search')
+-@app.route('/query')
++@bp.route('/search')
++@bp.route('/query')
+ def query():
+     req_args = flask.request.args
+     criteria = {}
+     offset = get_int(req_args, 'offset', 0, 0, 100000)
+-    limit = get_int(req_args, 'limit', 50, 0, 1000)
++    limit = get_int(req_args, 'limit', 100, 0, 1000)
+     for key in flask.request.args:
+         if key in VALID_KEYS:
+             criteria[key] = flask.request.args[key]
+     results = responses.query_paginated(criteria, offset=offset, limit=limit)
+     return jsonify(results)
+ 
++@bp.route('/simplified-search')
++@bp.route('/simplified-query')
++def simplified_query():
++    req_args = flask.request.args
++    criteria = {}
++    offset = get_int(req_args, 'offset', 0, 0, 100000)
++    limit = get_int(req_args, 'limit', 100, 0, 1000)
++    for key in flask.request.args:
++        if key in VALID_KEYS:
++            criteria[key] = flask.request.args[key]
++    results = responses.simplified_query_paginated(criteria, offset=offset, limit=limit)
++    return jsonify(results)
++
++@bp.route('/search/count')
++@bp.route('/query/count')
++def query_count():
++    """
++    Count the number of edges matching a query.
++    This supports Linked Data Fragments interfaces such as the 
++    Triple Pattern Fragment
++    """
++    criteria = {}
++    for key in flask.request.args:
++        if key in VALID_KEYS:
++            criteria[key] = flask.request.args[key]
++    results = responses.query_count(criteria)
++    return jsonify(results)
++
++@bp.route('/simplified-search/count')
++@bp.route('/simplified-query/count')
++def simplified_query_count():
++    """
++    Count the number of edges matching a query.
++    This supports Linked Data Fragments interfaces such as the 
++    Triple Pattern Fragment
++    """
++    criteria = {}
++    for key in flask.request.args:
++        if key in VALID_KEYS:
++            criteria[key] = flask.request.args[key]
++    results = responses.simplified_query_count(criteria)
++    return jsonify(results)
++
++
+ 
+-@app.route('/uri')
+-@app.route('/normalize')
+-@app.route('/standardize')
++@bp.route('/uri')
++@bp.route('/normalize')
++@bp.route('/standardize')
+ def query_standardize_uri():
+     """
+     Look up the URI for a given piece of text. 'text' and 'language' should be
+@@ -104,7 +150,7 @@ def query_standardize_uri():
+     })
+ 
+ 
+-@app.route('/')
++@bp.route('/')
+ def see_documentation():
+     """
+     This function redirects to the api documentation
+@@ -115,7 +161,7 @@ def see_documentation():
+     })
+ 
+ 
+-@app.route('/related/<path:uri>')
++@bp.route('/related/<path:uri>')
+ @limiter.limit("60 per minute")
+ def query_top_related(uri):
+     req_args = flask.request.args
+@@ -126,7 +172,7 @@ def query_top_related(uri):
+     return jsonify(results)
+ 
+ 
+-@app.route('/relatedness')
++@bp.route('/relatedness')
+ @limiter.limit("60 per minute")
+ def query_relatedness():
+     req_args = flask.request.args
+@@ -166,7 +212,7 @@ def internal_server_error(e):
+ # Visiting this URL intentionally causes an error, so we can see if Sentry
+ # is working. It has a silly name instead of just 'error' to decrease the
+ # probability of it being accidentally crawled.
+-@app.route('/i-am-error')
++@bp.route('/i-am-error')
+ def fake_error():
+     raise Exception("Fake error for testing")
+ 
+@@ -174,7 +220,7 @@ def fake_error():
+ def render_error(status, details):
+     return jsonify(error({}, status=status, details=details), status=status)
+ 
++app.register_blueprint(bp, url_prefix=os.environ.get('APPLICATION_ROOT', ''))
+ 
+ if __name__ == '__main__':
+-    app.debug = True
+-    app.run('127.0.0.1', debug=True, port=8084)
++    app.run(os.environ.get('HOSTNAME', '0.0.0.0'), debug=False, port=int(os.environ.get('PORT', '8084')))
+diff --git a/web/conceptnet_web/web.py b/web/conceptnet_web/web.py
+index 46afa082..cf76051b 100644
+--- a/web/conceptnet_web/web.py
++++ b/web/conceptnet_web/web.py
+@@ -5,6 +5,7 @@
+ 
+ import flask
+ from flask_limiter import Limiter
++from flask_limiter.util import get_remote_address
+ 
+ from conceptnet5 import api as responses
+ from conceptnet5.languages import COMMON_LANGUAGES, get_language_name
+@@ -30,7 +31,7 @@ def app_path(path):
+ 
+ for filter_name, filter_func in FILTERS.items():
+     app.jinja_env.filters[filter_name] = filter_func
+-limiter = Limiter(app, global_limits=["600 per minute", "6000 per hour"])
++limiter = Limiter(app, key_func=get_remote_address, default_limits=["600 per minute", "6000 per hour"])
+ try_configuring_sentry(app)
+ application = app  # for uWSGI
+ 
+@@ -212,5 +213,4 @@ def render_error(status, details):
+ 
+ 
+ if __name__ == '__main__':
+-    app.debug = True
+-    app.run('127.0.0.1', debug=True, port=8084)
++    app.run(os.environ.get('HOSTNAME', '0.0.0.0'), debug=False, port=int(os.environ.get('PORT', '8085')))
+diff --git a/web/setup.py b/web/setup.py
+index 0cdd38aa..f7a04214 100644
+--- a/web/setup.py
++++ b/web/setup.py
+@@ -23,8 +23,8 @@
+     include_package_data=True,
+     install_requires=[
+         'conceptnet >= %s' % version_str,
+-        'limits', 'flask >= 0.12.3', 'flask-cors', 'flask-limiter',
+-        'langcodes >= 2.1', 'jinja2-highlight', 'pygments', 'raven[flask] >= 6.6'
++        'limits == 2.3', 'flask == 2.0.2', 'flask-cors == 3.0.10', 'flask-limiter == 2.7.0',
++        'langcodes == 3.3.0', 'jinja2-highlight == 0.6.1', 'pygments == 2.10.0', 'raven[flask] == 6.10.0'
+     ],
+     license = 'Apache License 2.0',
+ )
+diff --git a/wsgi.py b/wsgi.py
+new file mode 100644
+index 00000000..f2bccf1f
+--- /dev/null
++++ b/wsgi.py
+@@ -0,0 +1,4 @@
++from web.conceptnet_web.api import app as application
++
++if __name__ == '__main__':
++    application.run()
