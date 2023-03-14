@@ -1,7 +1,7 @@
 # Linked Data Fragments Server - TPF ConceptNet Datasources
 <img src="http://linkeddatafragments.org/images/logo.svg" width="200" align="right" alt="" />
 
-[![npm version](https://badge.fury.io/js/%40tpf%2Fdatasource-conceptnet.svg)](https://www.npmjs.com/package/tpf-conceptnet-datasource)
+[![npm version](https://badge.fury.io/js/tpf-conceptnet-datasource.svg)](https://www.npmjs.com/package/tpf-conceptnet-datasource)
 
 
 This module contains a Conceptnet datasource for the [Linked Data Fragments server](https://github.com/LinkedDataFragments/Server.js).
