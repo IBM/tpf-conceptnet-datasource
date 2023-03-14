@@ -27,7 +27,7 @@
     "sparqljson-parse": "^2.2.0"
   },
   "peerDependencies": {
-    "@ldf/core": "^3.0.0"
+    "@ldf/core": "^3.2.1"
   },
   "devDependencies": {
     "@ldf/core": "^3.2.1",
