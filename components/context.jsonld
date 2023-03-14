@@ -1,0 +1,15 @@
+{
+  "@context": [
+    "https://linkedsoftwaredependencies.org/bundles/npm/componentsjs/^4.0.0/components/context.jsonld",
+    {
+      "npmd": "https://linkedsoftwaredependencies.org/bundles/npm/",
+      "ldfdcn": "npmd:tpf-datasource-conceptnet/",
+      "files-ldfdcn": "ldfdcn:^1.0.0/",
+
+      "ConceptNetDatasource": "ldfdcn:Datasource/ConceptNet",
+      "endpoint": "ldfdcn:Datasource/ConceptNet#endpoint",
+      "baseUri": "ldfdcn:Datasource/ConceptNet#baseUri",
+      "languages": "ldfdcn:Datasource/ConceptNet#languages"
+    }
+  ]
+}
