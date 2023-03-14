@@ -1,5 +1,5 @@
 {
-  "name": "tpf-datasource-conceptnet",
+  "name": "tpf-conceptnet-datasource",
   "description": "Linked Data Fragments Server - TPF ConceptNet Datasource",
   "version": "1.0.0",
   "lsd:module": true,
@@ -14,7 +14,7 @@
     "index.js"
   ],
   "bugs": {
-    "url": "https://github.com/IBM/tpf-datasource-conceptnet/issues"
+    "url": "https://github.com/IBM/tpf-conceptnet-datasource/issues"
   },
   "scripts": {
     "test": "nyc mocha",
@@ -24,6 +24,7 @@
     "lru-cache": "^7.14.0",
     "node-fetch": "^2.6.7",
     "object-hash": "^3.0.0",
+    "package.json": "^2.0.1",
     "sparqljson-parse": "^1.5.1"
   },
   "peerDependencies": {
@@ -35,7 +36,7 @@
     "nyc": "^15.1.0"
   },
   "author": "IBM Research",
-  "homepage": "https://github.com/IBM/tpf-datasource-conceptnet#readme",
+  "homepage": "https://github.com/IBM/tpf-conceptnet-datasource#readme",
   "directories": {
     "lib": "lib",
     "test": "test"

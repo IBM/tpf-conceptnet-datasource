@@ -1,7 +1,7 @@
 {
   "@context": [
     "https://linkedsoftwaredependencies.org/bundles/npm/@ldf/core/^3.0.0/components/context.jsonld",
-    "https://linkedsoftwaredependencies.org/bundles/npm/tpf-datasource-conceptnet/^1.0.0/components/context.jsonld"
+    "https://linkedsoftwaredependencies.org/bundles/npm/tpf-conceptnet-datasource/^1.0.0/components/context.jsonld"
   ],
   "@id": "npmd:datasource-conceptnet",
   "components": [

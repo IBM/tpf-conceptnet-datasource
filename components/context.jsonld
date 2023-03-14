@@ -3,7 +3,7 @@
     "https://linkedsoftwaredependencies.org/bundles/npm/componentsjs/^4.0.0/components/context.jsonld",
     {
       "npmd": "https://linkedsoftwaredependencies.org/bundles/npm/",
-      "ldfdcn": "npmd:tpf-datasource-conceptnet/",
+      "ldfdcn": "npmd:tpf-conceptnet-datasource/",
       "files-ldfdcn": "ldfdcn:^1.0.0/",
 
       "ConceptNetDatasource": "ldfdcn:Datasource/ConceptNet",

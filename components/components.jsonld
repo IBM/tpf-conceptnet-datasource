@@ -1,8 +1,8 @@
 {
-  "@context": "https://linkedsoftwaredependencies.org/bundles/npm/tpf-datasource-conceptnet/^1.0.0/components/context.jsonld",
-  "@id": "npmd:tpf-datasource-conceptnet",
+  "@context": "https://linkedsoftwaredependencies.org/bundles/npm/tpf-conceptnet-datasource/^1.0.0/components/context.jsonld",
+  "@id": "npmd:tpf-conceptnet-datasource",
   "@type": "Module",
-  "requireName": "tpf-datasource-conceptnet",
+  "requireName": "tpf-conceptnet-datasource",
   "import": [
     "files-ldfdcn:components/Datasource/ConceptNet.jsonld"
   ]
