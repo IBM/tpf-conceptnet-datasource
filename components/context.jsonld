@@ -3,13 +3,13 @@
     "https://linkedsoftwaredependencies.org/bundles/npm/componentsjs/^4.0.0/components/context.jsonld",
     {
       "npmd": "https://linkedsoftwaredependencies.org/bundles/npm/",
-      "ldfdcn": "npmd:tpf-conceptnet-datasource/",
-      "files-ldfdcn": "ldfdcn:^1.0.0/",
+      "ldfcnd": "npmd:tpf-conceptnet-datasource/",
+      "files-ldfcnd": "ldfcnd:^1.0.0/",
 
-      "ConceptNetDatasource": "ldfdcn:Datasource/ConceptNet",
-      "endpoint": "ldfdcn:Datasource/ConceptNet#endpoint",
-      "baseUri": "ldfdcn:Datasource/ConceptNet#baseUri",
-      "languages": "ldfdcn:Datasource/ConceptNet#languages"
+      "ConceptNetDatasource": "ldfcnd:Datasource/ConceptNet",
+      "endpoint": "ldfcnd:Datasource/ConceptNet#endpoint",
+      "baseUri": "ldfcnd:Datasource/ConceptNet#baseUri",
+      "languages": "ldfcnd:Datasource/ConceptNet#languages"
     }
   ]
 }

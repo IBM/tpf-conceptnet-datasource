@@ -6,26 +6,26 @@
   "@id": "npmd:datasource-conceptnet",
   "components": [
     {
-      "@id": "ldfdcn:Datasource/ConceptNet",
+      "@id": "ldfcnd:Datasource/ConceptNet",
       "@type": "Class",
       "extends": "ldfc:Datasource",
       "requireElement": "datasources.ConceptNetDatasource",
       "comment": "A ConceptNetDatasource provides access to the ConceptNet query API",
       "parameters": [
         {
-          "@id": "ldfdcn:Datasource/ConceptNet#endpoint",
+          "@id": "ldfcnd:Datasource/ConceptNet#endpoint",
           "comment": "The ConceptNet API endpoint",
           "range": "xsd:string",
           "unique": true
         },
         {
-          "@id": "ldfdcn:Datasource/ConceptNet#baseUri",
+          "@id": "ldfcnd:Datasource/ConceptNet#baseUri",
           "comment": "The Base URI to be prepended to the results.",
           "range": "xsd:string",
           "unique": true
         },
         {
-          "@id": "ldfdcn:Datasource/ConceptNet#languages",
+          "@id": "ldfcnd:Datasource/ConceptNet#languages",
           "comment": "Filter results by languages.",
           "range": {
             "@type": "ParameterRangeArray"
@@ -37,15 +37,15 @@
         "fields": [
           {
             "keyRaw": "endpoint",
-            "value": "ldfdcn:Datasource/ConceptNet#endpoint"
+            "value": "ldfcnd:Datasource/ConceptNet#endpoint"
           },
           {
             "keyRaw": "baseUri",
-            "value": "ldfdcn:Datasource/ConceptNet#baseUri"
+            "value": "ldfcnd:Datasource/ConceptNet#baseUri"
           },
           {
             "keyRaw": "languages",
-            "value": "ldfdcn:Datasource/ConceptNet#languages"
+            "value": "ldfcnd:Datasource/ConceptNet#languages"
           }
         ]
       }

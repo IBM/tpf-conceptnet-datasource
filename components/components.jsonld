@@ -4,6 +4,6 @@
   "@type": "Module",
   "requireName": "tpf-conceptnet-datasource",
   "import": [
-    "files-ldfdcn:components/Datasource/ConceptNet.jsonld"
+    "files-ldfcnd:components/Datasource/ConceptNet.jsonld"
   ]
 }
