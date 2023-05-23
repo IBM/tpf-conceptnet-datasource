@@ -15,7 +15,7 @@ This package exposes the following config entries:
 * `ConceptNetDatasource`: A ConceptNet based datasource that requires at least one `endpoint` field. _Should be used as `@type` value._
 * `endpoint`: Refers to a ConceptNet endpoint capable of receiving and processing requests. _Should be used as key in a `ConceptNetDatasource`._
 * `baseUri`: Refers to a base URI that will be prefixed to the results. _Should be used as key in a `ConceptNetDatasource`._
-* `languages`: Refers to filtering the results by some langagues. Default []. _Should be used as key in a `ConceptNetDatasource`._
+* `languages`: Refers to filtering the results by some languages. Default []. _Should be used as key in a `ConceptNetDatasource`._
 
 Example:
 ```json
