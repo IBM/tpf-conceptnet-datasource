@@ -59,5 +59,17 @@ For example:
 ## Contributing
 See [CONTRIBUTING](CONTRIBUTING.md).
 
+## Citation
+```bibtex
+@inproceedings{machado2023enabling,
+  title={Enabling Live SPARQL Queries over ConceptNet Using Triple Pattern Fragments},
+  author={Machado, Marcelo and Lima, Guilherme and Soares, Elton and Uceda-Sosa, Rosario and Cerqueira, Renato},
+  booktitle={The Semantic Web: 20th International Conference, ESWC 2023, Hersonissos, Crete, Greece, May 28--June 1, 2023, Proceedings},
+  pages={661--678},
+  year={2023},
+  organization={Springer}
+}
+```
+
 ## License
 This module is released under the [MIT license](LICENSE).
